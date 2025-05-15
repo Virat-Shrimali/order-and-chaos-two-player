@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order and Chaos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/svg.js/3.2.0/svg.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cookieconsent/3.1.1/cookieconsent.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cookieconsent/3.1.1/cookieconsent.min.js"></script>
+    <style>
+        .container {
+            max-width: 100%;
+            padding: 1rem;
+            margin: 0 auto;
+            position: relative;
+        }
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .cell {
+            width: clamp(40px, 8vw, 60px);
+            height: clamp(40px, 8vw, 60px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: clamp(1rem, 2.5vw, 1.5rem);
+            cursor: pointer;
+            border: 1px solid #ccc;
+            position: relative;
+            line-height: clamp(40px, 8vw, 60px);
+            font-weight: bold;
+            transition: background-color 0.2s;
+            touch-action: manipulation;
+        }
+        .cell:hover {
+            background-color: #f0f0f0;
+        }
+        .cell.x {
+            color: #dc2626; /* Red for X */
+            animation: fadeIn 0.3s ease-in;
+        }
+        .cell.o {
+            color: #000000; /* Black for O */
+            animation: fadeIn 0.3s ease-in;
+        }
+        #board {
+            display: grid;
+            grid-template-columns: repeat(6, minmax(40px, 60px));
+            gap: 4px;
+            justify-content: center;
+            max-width: 100%;
+            position: relative;
+        }
+        #adzoneright, #adzonebottom, #mobilebannerad1, #mobilebannerad2 {
+            margin: 1rem 0;
+            text-align: center;
+        }
+        #adzoneright {
+            width: clamp(250px, 30vw, 468px);
+        }
+        #adzonebottom {
+            width: 100%;
+        }
+        .adbg2, .adbg3, .adbg4, .adbg5 {
+            margin: 0.5rem auto;
+        }
+        @media (max-width: 768px) {
+            .cell {
+                width: clamp(35px, 7vw, 50px);
+                height: clamp(35px, 7vw, 50px);
+                line-height: clamp(35px, 7vw, 50px);
+                font-size: clamp(0.9rem, 2vw, 1.2rem);
+            }
+            #board {
+                grid-template-columns: repeat(6, minmax(35px, 50px));
+            }
+            #adzoneright {
+                width: 100%;
+                max-width: 320px;
+            }
+        }
+        @media (max-width: 480px) {
+            .container {
+                padding: 0.5rem;
+            }
+            .cell {
+                width: clamp(30px, 6vw, 40px);
+                height: clamp(30px, 6vw, 40px);
+                line-height: clamp(30px, 6vw, 40px);
+                font-size: clamp(0.8rem, 1.8vw, 1rem);
+            }
+            #board {
+                grid-template-columns: repeat(6, minmax(30px, 40px));
+                gap: 2px;
+            }
+            #status {
+                font-size: 0.9rem;
+            }
+            button {
+                padding: 0.5rem;
+                font-size: 0.9rem;
+            }
+        }
+        svg.strikethrough {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .strikethrough line {
+            stroke: red;
+            stroke-dasharray: 500;
+            stroke-dashoffset: 500;
+            stroke-linecap: round;
+            animation: draw 0.5s ease-in-out forwards;
+        }
+        @keyframes draw {
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        #move-history {
+            max-height: 150px;
+            overflow-y: auto;
+            margin-top: 1rem;
+            padding: 0.5rem;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            width: 100%;
+            max-width: 360px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen">
+    <div class="container bg-white p-6 rounded-lg shadow-lg">
+        <div class="game-container">
+            <h1 class="text-2xl font-bold text-center mb-4">Order and Chaos</h1>
+            <div id="mobilebannerad1"></div>
+            <div id="mode-selection" class="mb-4 flex justify-center gap-2">
+                <button id="two-player-btn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Two Players</button>
+                <button id="vs-computer-btn" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Vs Computer</button>
+            </div>
+            <div id="role-selection" class="hidden mb-4">
+                <p id="role-prompt" class="text-center mb-2"></p>
+                <div class="flex justify-center gap-2">
+                    <button id="order-btn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Order</button>
+                    <button id="chaos-btn" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">Chaos</button>
+                </div>
+            </div>
+            <div id="game-area" class="hidden">
+                <div id="status" class="text-center mb-4 text-lg"></div>
+                <div id="piece-selection" class="flex justify-center mb-4 gap-2">
+                    <button id="x-btn" class="bg-gray-300 px-4 py-2 rounded-l hover:bg-gray-400">X</button>
+                    <button id="o-btn" class="bg-gray-300 px-4 py-2 rounded-r hover:bg-gray-400">O</button>
+                </div>
+                <div id="board" class="relative"></div>
+                <div id="move-history" class="text-sm"></div>
+                <button id="restart-btn" class="bg-red-500 text-white px-4 py-2 rounded mt-4 w-full hover:bg-red-600">Restart</button>
+            </div>
+            <div id="mobilebannerad2"></div>
+            <div id="adzonebottom"></div>
+        </div>
+        <div id="adzoneright"></div>
+    </div>
+    <script>
+        // Cookie Consent Initialization
+        /* window.cookieconsent && window.cookieconsent.initialise({
+            palette: {
+                popup: { background: "#353333" },
+                button: { background: "#14a7d0", text: "#000000" }
+            },
+            theme: "classic",
+            position: "bottom-left",
+            content: {
+                message: "On this website our advertising partners (Google and others) use cookies to personalize your ads. By using our site you agree to our privacy policy.",
+                dismiss: "Accept",
+                href: "http://www.onlinesologames.com/privacypolicy"
+            }
+        });*/
+
+        // Resize Game Board
+        function resizeGameBoard() {
+            const board = $('#board');
+            const container = $('.game-container');
+            const windowHeight = window.innerHeight;
+            const containerWidth = container.width();
+            let size = Math.min(containerWidth, windowHeight * 0.8);
+            board.css({
+                width: `${size}px`,
+                maxWidth: '100%'
+            });
+        }
+
+        // Ad Integration
+        function showAds() {
+            if (window.location.hostname.includes("onlinesologames.com")) {
+                const width = window.innerWidth;
+                if (width < 768) {
+                    const mobileBanner2 = $('#mobilebannerad2');
+                    const adZoneBottom = $('#adzonebottom');
+                    if (mobileBanner2.length) {
+                        mobileBanner2.append('<div class="adbg2"><ins class="adsbygoogle" style="display:inline-block;width:320px;height:50px" data-ad-client="ca-pub-0810934084049672" data-ad-slot="6934415875"></ins></div>');
+                        (window.adsbygoogle = window.adsbygoogle || []).push({});
+                    }
+                    if (adZoneBottom.length) {
+                        adZoneBottom.append('<div class="adbg2"><ins class="adsbygoogle" style="display:inline-block;width:300px;height:250px" data-ad-client="ca-pub-0810934084049672" data-ad-slot="5004236277"></ins></div>');
+                        (window.adsbygoogle = window.adsbygoogle || []).push({});
+                        adZoneBottom.append('<div class="adbg4"><ins class="adsbygoogle" style="display:block" data-ad-format="autorelaxed" data-ad-client="ca-pub-0810934084049672" data-ad-slot="8343638070"></ins></div>');
+                        (window.adsbygoogle = window.adsbygoogle || []).push({});
+                    }
+                } else {
+                    const adZoneRight = $('#adzoneright');
+                    const mobileBanner1 = $('#mobilebannerad1');
+                    const adZoneBottom = $('#adzonebottom');
+                    if (mobileBanner1.length) {
+                        mobileBanner1.append('<div class="adbg2"><ins class="adsbygoogle" style="display:inline-block;width:320px;height:50px" data-ad-client="ca-pub-0810934084049672" data-ad-slot="6934415875"></ins></div>');
+                        (window.adsbygoogle = window.adsbygoogle || []).push({});
+                    }
+                    if (adZoneRight.length) {
+                        const rightWidth = adZoneRight.width();
+                        adZoneRight.append(rightWidth >= 468
+                            ? '<div class="adbg2"><ins class="adsbygoogle" style="display:inline-block;width:468px;height:60px" data-ad-client="ca-pub-0810934084049672" data-ad-slot="9556928036"></ins></div>'
+                            : '<div class="adbg2"><ins class="adsbygoogle" style="display:inline-block;width:320px;height:100px" data-ad-client="ca-pub-0810934084049672" data-ad-slot="2551654104"></ins></div>');
+                        (window.adsbygoogle = window.adsbygoogle || []).push({});
+                    }
+                    if (adZoneBottom.length) {
+                        adZoneBottom.append('<div class="adbg4"><ins class="adsbygoogle" style="display:block" data-ad-format="autorelaxed" data-ad-client="ca-pub-0810934084049672" data-ad-slot="8343638070"></ins></div>');
+                        (window.adsbygoogle = window.adsbygoogle || []).push({});
+                    }
+                }
+                const script = document.createElement("script");
+                script.type = "text/javascript";
+                script.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js";
+                document.body.appendChild(script);
+            }
+        }
+
+        // Game Logic
+        const board = Array(6).fill().map(() => Array(6).fill(null));
+        let currentPlayer = 'Order';
+        let selectedPiece = 'X';
+        let gameMode = null;
+        let gameOver = false;
+        let player1Role = null;
+        let player2Role = null;
+        let playerRole = null;
+        let computerRole = null;
+        let moveHistory = [];
+
+        const boardElement = $('#board');
+        const statusElement = $('#status');
+        const xBtn = $('#x-btn');
+        const oBtn = $('#o-btn');
+        const restartBtn = $('#restart-btn');
+        const twoPlayerBtn = $('#two-player-btn');
+        const vsComputerBtn = $('#vs-computer-btn');
+        const orderBtn = $('#order-btn');
+        const chaosBtn = $('#chaos-btn');
+        const modeSelection = $('#mode-selection');
+        const roleSelection = $('#role-selection');
+        const rolePrompt = $('#role-prompt');
+        const gameArea = $('#game-area');
+        const moveHistoryElement = $('#move-history');
+
+        function initBoard() {
+            boardElement.empty();
+            for (let i = 0; i < 6; i++) {
+                for (let j = 0; j < 6; j++) {
+                    const cell = $('<div>')
+                        .addClass('cell')
+                        .attr('data-row', i)
+                        .attr('data-col', j)
+                        .on('click touchstart', function(e) {
+                            e.preventDefault();
+                            handleCellClick(i, j);
+                        });
+                    boardElement.append(cell);
+                }
+            }
+        }
+
+        function showRoleSelection(mode) {
+            gameMode = mode;
+            modeSelection.addClass('hidden');
+            roleSelection.removeClass('hidden');
+            rolePrompt.text(mode === 'two-player' ? 'Player 1: Choose your role' : 'Choose your role');
+        }
+
+        function startGame(role) {
+            if (gameMode === 'two-player') {
+                player1Role = role;
+                player2Role = role === 'Order' ? 'Chaos' : 'Order';
+            } else {
+                playerRole = role;
+                computerRole = role === 'Order' ? 'Chaos' : 'Order';
+            }
+            roleSelection.addClass('hidden');
+            gameArea.removeClass('hidden');
+            resetGame();
+        }
+
+        function resetGame() {
+            board.forEach(row => row.fill(null));
+            currentPlayer = 'Order';
+            selectedPiece = 'X';
+            gameOver = false;
+            // moveHistory = [];
+            // updateMoveHistory();
+            updateStatus();
+            updatePieceSelection();
+            initBoard();
+            boardElement.find('.strikethrough').remove(); // Clear any existing strikethroughs
+            if (gameMode === 'vs-computer' && currentPlayer === computerRole) {
+                setTimeout(computerMove, 1000);
+            }
+        }
+
+        function updateStatus() {
+            if (gameOver) return;
+            if (gameMode === 'two-player') {
+                const player = currentPlayer === player1Role ? 'Player 1' : 'Player 2';
+                const role = currentPlayer === player1Role ? player1Role : player2Role;
+                statusElement.text(`${player} (${role})'s Turn (Place ${selectedPiece})`);
+            } else {
+                const displayPlayer = currentPlayer === playerRole ? 'Player' : 'Computer';
+                const role = currentPlayer === playerRole ? playerRole : computerRole;
+                statusElement.text(`${displayPlayer} (${role})'s Turn (Place ${selectedPiece})`);
+            }
+        }
+
+        function updatePieceSelection() {
+            xBtn.toggleClass('bg-gray-500', selectedPiece === 'X');
+            oBtn.toggleClass('bg-gray-500', selectedPiece === 'O');
+        }
+
+        function updateMoveHistory() {
+            moveHistoryElement.html(moveHistory.length > 0
+                ? moveHistory.map((move, i) => `<div>${i + 1}. ${move}</div>`).join('')
+                : 'No moves yet');
+        }
+
+        function handleCellClick(row, col) {
+            if (gameOver || board[row][col] || (gameMode === 'vs-computer' && currentPlayer === computerRole)) return;
+            board[row][col] = selectedPiece;
+            const cell = $(`[data-row="${row}"][data-col="${col}"]`);
+            cell.text(selectedPiece).addClass(selectedPiece.toLowerCase());
+
+            const player = gameMode === 'two-player'
+            //     ? (currentPlayer === player1Role ? 'Player 1' : 'Player 2')
+            //     : (currentPlayer === playerRole ? 'Player' : 'Computer');
+            // moveHistory.push(`${player} (${currentPlayer}) placed ${selectedPiece} at (${row + 1}, ${col + 1})`);
+            // updateMoveHistory();
+
+            if (checkWin()) return;
+            switchPlayer();
+            if (gameMode === 'vs-computer' && currentPlayer === computerRole && !gameOver) {
+                setTimeout(computerMove, 1000);
+            }
+        }
+
+        function switchPlayer() {
+            currentPlayer = currentPlayer === 'Order' ? 'Chaos' : 'Order';
+            updateStatus();
+        }
+
+        function checkWin() {
+            const directions = [
+                { dr: 0, dc: 1, type: 'horizontal' },
+                { dr: 1, dc: 0, type: 'vertical' },
+                { dr: 1, dc: 1, type: 'diagonal' },
+                { dr: 1, dc: -1, type: 'diagonal' }
+            ];
+
+            for (let r = 0; r < 6; r++) {
+                for (let c = 0; c < 6; c++) {
+                    for (const { dr, dc, type } of directions) {
+                        let countX = 0, countO = 0;
+                        const cells = [];
+                        for (let i = 0; i < 5; i++) {
+                            const nr = r + i * dr;
+                            const nc = c + i * dc;
+                            if (nr < 0 || nr >= 6 || nc < 0 || nc >= 6) break;
+                            cells.push([nr, nc]);
+                            if (board[nr][nc] === 'X') countX++;
+                            else if (board[nr][nc] === 'O') countO++;
+                        }
+                        if ((countX === 5 || countO === 5) && cells.length === 5) {
+                            boardElement.find('.strikethrough').remove(); // Clear previous strikethroughs
+                            drawStrikethrough(cells, type);
+                            statusElement.text('Order Wins!');
+                            gameOver = true;
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            if (board.flat().every(cell => cell !== null)) {
+                statusElement.text('Chaos Wins!');
+                gameOver = true;
+                return true;
+            }
+            return false;
+        }
+
+        function drawStrikethrough(cells, type) {
+            if (!window.SVG) {
+                console.error('SVG.js not loaded; strikethrough not drawn.');
+                return;
+            }
+
+            // Get cell and board positions
+            const firstCell = $(`[data-row="${cells[0][0]}"][data-col="${cells[0][1]}"]`);
+            const lastCell = $(`[data-row="${cells[4][0]}"][data-col="${cells[4][1]}"]`);
+            if (!firstCell.length || !lastCell.length) {
+                console.error('Cells not found for strikethrough.');
+                return;
+            }
+
+            const boardOffset = boardElement.offset();
+            const firstCellOffset = firstCell.offset();
+            const lastCellOffset = lastCell.offset();
+            const cellWidth = firstCell.outerWidth();
+            const cellHeight = firstCell.outerHeight();
+
+            // Calculate center coordinates relative to board
+            let x1 = firstCellOffset.left - boardOffset.left + cellWidth / 2;
+            let y1 = firstCellOffset.top - boardOffset.top + cellHeight / 2;
+            let x2 = lastCellOffset.left - boardOffset.left + cellWidth / 2;
+            let y2 = lastCellOffset.top - boardOffset.top + cellHeight / 2;
+
+            // Adjust for horizontal and vertical lines
+            if (type === 'horizontal') {
+                y1 = y2 = firstCellOffset.top - boardOffset.top + cellHeight / 2;
+            } else if (type === 'vertical') {
+                x1 = x2 = firstCellOffset.left - boardOffset.left + cellWidth / 2;
+            }
+
+            // Create SVG with SVG.js
+            const boardWidth = boardElement.outerWidth();
+            const boardHeight = boardElement.outerHeight();
+            const svg = SVG().addTo(boardElement[0])
+                .size(boardWidth, boardHeight)
+                .addClass('strikethrough');
+
+            // Draw line
+            const strokeWidth = type === 'horizontal' ? 4 : type === 'vertical' ? 3 : 5;
+            svg.line(x1, y1, x2, y2)
+                .stroke({ color: 'red', width: strokeWidth, linecap: 'round' })
+                .css({
+                    'stroke-dasharray': 500,
+                    'stroke-dashoffset': 500,
+                    'animation': 'draw 0.5s ease-in-out forwards'
+                });
+
+            console.log(`Strikethrough drawn: type=${type}, x1=${x1}, y1=${y1}, x2=${x2}, y2=${y2}`);
+        }
+
+        function computerMove() {
+              if (gameOver) return;
+
+  // Try to win if possible
+  for (let r = 0; r < 6; r++) {
+    for (let c = 0; c < 6; c++) {
+      if (board[r][c]) continue;
+      for (let piece of ['X', 'O']) {
+        board[r][c] = piece;
+        if (checkWin()) {
+          board[r][c] = null;
+          selectedPiece = piece;
+          handleMove(r, c);
+          return;
+        }
+        board[r][c] = null;
+      }
+    }
+  }
+
+  // Try to block the player's win
+  for (let r = 0; r < 6; r++) {
+    for (let c = 0; c < 6; c++) {
+      if (board[r][c]) continue;
+      for (let piece of ['X', 'O']) {
+        board[r][c] = piece;
+        let wouldWin = checkWin();
+        board[r][c] = null;
+        if (wouldWin) {
+          selectedPiece = piece === 'X' ? 'O' : 'X';
+          handleMove(r, c);
+          return;
+        }
+      }
+    }
+  }
+
+  // Make a random move
+  const options = [];
+  for (let r = 0; r < 6; r++) {
+    for (let c = 0; c < 6; c++) {
+      if (!board[r][c]) options.push([r, c]);
+    }
+  }
+  if (options.length > 0) {
+    const [r, c] = options[Math.floor(Math.random() * options.length)];
+    selectedPiece = Math.random() > 0.5 ? 'X' : 'O';
+    handleMove(r, c);
+  }
+        }
+
+        // Event Listeners
+        xBtn.on('click', () => {
+            selectedPiece = 'X';
+            updatePieceSelection();
+            updateStatus();
+        });
+        oBtn.on('click', () => {
+            selectedPiece = 'O';
+            updatePieceSelection();
+            updateStatus();
+        });
+        restartBtn.on('click', resetGame);
+        twoPlayerBtn.on('click', () => showRoleSelection('two-player'));
+        vsComputerBtn.on('click', () => showRoleSelection('vs-computer'));
+        orderBtn.on('click', () => startGame('Order'));
+        chaosBtn.on('click', () => startGame('Chaos'));
+
+        $(window).on('resize', () => {
+            resizeGameBoard();
+            // Redraw strikethrough if game is over
+            if (gameOver) {
+                boardElement.find('.strikethrough').remove();
+                checkWin();
+            }
+        });
+
+        $(document).ready(() => {
+            resizeGameBoard();
+            showAds();
+            initBoard();
+        });
+    </script>
+</body>
+</html>
